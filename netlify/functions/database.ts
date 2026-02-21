@@ -3,10 +3,18 @@ import { neon } from '@netlify/neon';
 export const handler = async (event: any) => {
   const databaseUrl = process.env.DATABASE_URL;
   
+  const headers = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+  };
+  
   if (!databaseUrl) {
     console.error('DATABASE_URL is missing in environment variables');
     return {
       statusCode: 500,
+      headers,
       body: JSON.stringify({ error: 'DATABASE_URL not configured' }),
     };
   }
@@ -28,6 +36,7 @@ export const handler = async (event: any) => {
         const results = await sql`SELECT * FROM transactions ORDER BY date DESC`;
         return {
           statusCode: 200,
+          headers,
           body: JSON.stringify(results),
         };
 
@@ -39,6 +48,7 @@ export const handler = async (event: any) => {
         `;
         return {
           statusCode: 201,
+          headers,
           body: JSON.stringify({ message: 'Inserted successfully' }),
         };
 
@@ -47,6 +57,7 @@ export const handler = async (event: any) => {
         await sql`DELETE FROM transactions WHERE id = ${id}`;
         return {
           statusCode: 200,
+          headers,
           body: JSON.stringify({ message: 'Deleted successfully' }),
         };
 
@@ -58,12 +69,14 @@ export const handler = async (event: any) => {
         `;
         return {
           statusCode: 200,
+          headers,
           body: JSON.stringify({ message: 'State saved successfully' }),
         };
 
       default:
         return {
           statusCode: 400,
+          headers,
           body: JSON.stringify({ error: 'Invalid action' }),
         };
     }
@@ -71,6 +84,7 @@ export const handler = async (event: any) => {
     console.error('Database error:', error);
     return {
       statusCode: 500,
+      headers,
       body: JSON.stringify({ 
         error: 'Database connection or query failed', 
         details: error.message,
