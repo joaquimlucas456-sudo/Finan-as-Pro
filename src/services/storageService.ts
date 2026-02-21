@@ -29,25 +29,29 @@ export const storageService = {
       // Check if response is JSON
       if (!contentType || !contentType.includes('application/json')) {
         const text = await response.text();
-        console.warn('Servidor retornou HTML em vez de dados. Usando modo local.', text.substring(0, 100));
-        throw new Error('Invalid response format (HTML instead of JSON)');
+        console.warn('Servidor retornou HTML em vez de dados.', text.substring(0, 100));
+        throw new Error('O servidor retornou um formato inválido (HTML em vez de JSON). Verifique os logs da Netlify.');
       }
 
       if (!response.ok) {
         const errorData = await response.json();
-        const errorMsg = errorData.error || errorData.details || 'Failed to fetch data';
+        const errorMsg = errorData.error || errorData.details || 'Erro desconhecido ao buscar dados.';
         const err = new Error(errorMsg);
         handleDatabaseError(err);
         throw err;
       }
       
       const data = await response.json();
-      // If we got data, sync it to localStorage as a backup
+      // Sync to localStorage as a backup, but we rely on the cloud
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       return data;
-    } catch (error) {
-      console.error('Error getting months, falling back to localStorage:', error);
+    } catch (error: any) {
+      console.error('Erro crítico ao buscar meses do banco:', error);
+      // We still return local data to prevent the app from crashing, but we alert the user
       const localData = localStorage.getItem(STORAGE_KEY);
+      if (!localData) {
+        alert(`Erro de Conexão: ${error.message}`);
+      }
       return localData ? JSON.parse(localData) : [];
     }
   },
@@ -70,18 +74,19 @@ export const storageService = {
       
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
-        console.warn('Servidor retornou HTML ao salvar. Dados mantidos localmente.');
-        return; // Silent fail for save, since we already saved to localStorage
+        throw new Error('Servidor retornou formato inválido ao salvar.');
       }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        const errorMsg = errorData.error || 'Unknown error';
-        console.error('Failed to save to cloud:', errorMsg);
-        handleDatabaseError(new Error(errorMsg));
+        const errorMsg = errorData.error || 'Erro ao salvar na nuvem.';
+        const err = new Error(errorMsg);
+        handleDatabaseError(err);
+        throw err;
       }
-    } catch (error) {
-      console.error('Error saving months to cloud, data kept in localStorage:', error);
+    } catch (error: any) {
+      console.error('Erro ao salvar no banco de dados:', error);
+      alert(`Falha na Sincronização: ${error.message}. Seus dados foram salvos apenas localmente neste navegador.`);
     }
   }
 };
