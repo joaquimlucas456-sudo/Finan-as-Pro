@@ -87,12 +87,12 @@ export const handler = async (event: any) => {
         // If the user created a table named 'content', we try to save there too
         try {
           await sql`
-            INSERT INTO content (id, data) 
+            INSERT INTO content (id, content) 
             VALUES ('main', ${body.data})
-            ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data
+            ON CONFLICT (id) DO UPDATE SET content = EXCLUDED.content
           `;
         } catch (e) {
-          console.warn('Could not save to "content" table, check if it exists with columns id and data:', e);
+          console.warn('Could not save to "content" table, check if it exists with columns id and content:', e);
         }
 
         return {
