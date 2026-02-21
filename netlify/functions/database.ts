@@ -2,19 +2,26 @@ import { neon } from '@netlify/neon';
 
 export const handler = async (event: any) => {
   const databaseUrl = process.env.DATABASE_URL;
+  
   if (!databaseUrl) {
+    console.error('DATABASE_URL is missing in environment variables');
     return {
       statusCode: 500,
       body: JSON.stringify({ error: 'DATABASE_URL not configured' }),
     };
   }
 
+  // Log masked URL for debugging
+  const maskedUrl = databaseUrl.replace(/:([^@]+)@/, ':****@');
+  console.log(`Connecting to database: ${maskedUrl}`);
+
   const sql = neon(databaseUrl);
-  const method = event.httpMethod;
   
   try {
     const body = event.body ? JSON.parse(event.body) : {};
     const action = event.queryStringParameters?.action || body.action;
+
+    console.log(`Executing action: ${action}`);
 
     switch (action) {
       case 'select':
@@ -25,10 +32,10 @@ export const handler = async (event: any) => {
         };
 
       case 'insert':
-        const { date, amount, description, category, type } = body.data;
+        const { date, amount, description, category, type, bank, isInstallment, importance } = body.data;
         await sql`
-          INSERT INTO transactions (date, amount, description, category, type)
-          VALUES (${date}, ${amount}, ${description}, ${category}, ${type})
+          INSERT INTO transactions (date, amount, description, category, type, bank, installment, importance)
+          VALUES (${date}, ${amount}, ${description}, ${category}, ${type}, ${bank}, ${isInstallment}, ${importance})
         `;
         return {
           statusCode: 201,
@@ -43,7 +50,7 @@ export const handler = async (event: any) => {
           body: JSON.stringify({ message: 'Deleted successfully' }),
         };
 
-      case 'save': // Fallback for the whole state if needed
+      case 'save':
         await sql`
           INSERT INTO app_state (id, content) 
           VALUES ('main', ${JSON.stringify(body.data)})
@@ -61,9 +68,14 @@ export const handler = async (event: any) => {
         };
     }
   } catch (error: any) {
+    console.error('Database error:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: error.message }),
+      body: JSON.stringify({ 
+        error: 'Database connection or query failed', 
+        details: error.message,
+        stack: error.stack 
+      }),
     };
   }
 };

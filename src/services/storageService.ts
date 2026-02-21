@@ -10,8 +10,17 @@ export const storageService = {
         const data = localStorage.getItem(STORAGE_KEY);
         return data ? JSON.parse(data) : [];
       }
+      
+      console.log('Fetching data from Netlify Function...');
       const response = await fetch('/.netlify/functions/database?action=select');
-      if (!response.ok) throw new Error('Failed to fetch data');
+      
+      console.log(`Fetch response status: ${response.status} (${response.ok ? 'OK' : 'ERROR'})`);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to fetch data');
+      }
+      
       return await response.json();
     } catch (error) {
       console.error('Error getting months:', error);
@@ -25,12 +34,20 @@ export const storageService = {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(months));
         return;
       }
+      
+      console.log('Saving data to Netlify Function...');
       const response = await fetch('/.netlify/functions/database', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'save', data: months }),
       });
-      if (!response.ok) throw new Error('Failed to save data');
+      
+      console.log(`Save response status: ${response.status} (${response.ok ? 'OK' : 'ERROR'})`);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to save data');
+      }
     } catch (error) {
       console.error('Error saving months:', error);
       throw error;
