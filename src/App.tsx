@@ -346,49 +346,11 @@ export default function App() {
     const nextYear = nextMonthIndex === 0 ? lastYear + 1 : lastYear;
     const nextMonthName = MONTH_NAMES[nextMonthIndex].toUpperCase();
     
-    // Copy Fixed Expenses (non-installments)
-    const fixedExpenses = lastMonth.expenses
-      .filter(ex => ex.category === 'Desp. Fixas' && !ex.isInstallment)
-      .map(ex => {
-        const oldDate = new Date(ex.date + 'T00:00:00');
-        const newDate = new Date(oldDate);
-        newDate.setMonth(oldDate.getMonth() + 1);
-        
-        return {
-          ...ex,
-          id: Math.random().toString(36).substr(2, 9),
-          date: newDate.toISOString().split('T')[0],
-          groupId: ex.groupId || ex.id
-        } as Transaction;
-      });
-
-    // Copy ongoing installments
-    const ongoingInstallments = lastMonth.expenses
-      .filter(ex => ex.isInstallment && ex.installmentInfo.includes('/'))
-      .map(ex => {
-        const [current, total] = ex.installmentInfo.split('/').map(Number);
-        if (current < total) {
-          const oldDate = new Date(ex.date + 'T00:00:00');
-          const newDate = new Date(oldDate);
-          newDate.setMonth(oldDate.getMonth() + 1);
-
-          return {
-            ...ex,
-            id: Math.random().toString(36).substr(2, 9),
-            date: newDate.toISOString().split('T')[0],
-            installmentInfo: `${String(current + 1).padStart(2, '0')}/${String(total).padStart(2, '0')}`,
-            groupId: ex.groupId || ex.id
-          } as Transaction;
-        }
-        return null;
-      })
-      .filter((ex): ex is Transaction => ex !== null);
-
     return {
       id: Math.random().toString(36).substr(2, 9),
       name: `${nextMonthName} - ${nextYear}`,
       income: [],
-      expenses: [...fixedExpenses, ...ongoingInstallments],
+      expenses: [],
       savings: []
     };
   };
@@ -521,36 +483,42 @@ export default function App() {
   };
 
   const handleDelete = (id: string, type: 'income' | 'expense' | 'savings') => {
+    const activeMonthIndex = months.findIndex(m => m.id === activeMonthId);
+    if (activeMonthIndex === -1) return;
+
+    const itemToDelete = months[activeMonthIndex].expenses.find(ex => ex.id === id) || 
+                       months[activeMonthIndex].income.find(i => i.id === id) ||
+                       months[activeMonthIndex].savings.find(s => s.id === id);
+
+    if (!itemToDelete) return;
+
+    const groupId = (itemToDelete as Transaction).groupId;
+    let deleteMode: 'single' | 'group' = 'single';
+
+    if (groupId) {
+      const confirmGroup = window.confirm('Deseja excluir apenas esta parcela ou todas as parcelas deste grupo? Clique em OK para excluir TODAS ou Cancelar para excluir APENAS ESTA.');
+      if (confirmGroup) {
+        deleteMode = 'group';
+      }
+    } else {
+      if (!window.confirm('Tem certeza que deseja excluir este item?')) return;
+    }
+
     setMonths(prev => {
-      const activeMonthIndex = prev.findIndex(m => m.id === activeMonthId);
-      if (activeMonthIndex === -1) return prev;
-
-      // Find the item to check if it's a fixed expense
-      const itemToDelete = prev[activeMonthIndex].expenses.find(ex => ex.id === id);
-      const isFixedExpense = type === 'expense' && itemToDelete?.category === 'Desp. Fixas';
-      const groupId = itemToDelete?.groupId;
-
-      return prev.map((m, idx) => {
-        // If it's a fixed expense, delete from current and FUTURE months
-        if (isFixedExpense && groupId && idx >= activeMonthIndex) {
-          return {
-            ...m,
-            expenses: m.expenses.filter(ex => ex.groupId !== groupId && ex.id !== id)
-          };
-        }
-
-        // Standard delete logic for other items (only current month)
-        if (m.id !== activeMonthId) return m;
-        
+      return prev.map((m) => {
         const updatedMonth = { ...m };
-        if (type === 'income') {
-          updatedMonth.income = m.income.filter(item => item.id !== id);
-        } else if (type === 'expense') {
-          updatedMonth.expenses = m.expenses.filter(item => item.id !== id);
-        } else if (type === 'savings') {
-          updatedMonth.savings = m.savings.filter(item => item.id !== id);
+        if (deleteMode === 'group' && groupId) {
+          updatedMonth.income = m.income.filter(item => item.groupId !== groupId);
+          updatedMonth.expenses = m.expenses.filter(item => item.groupId !== groupId);
+        } else {
+          if (type === 'income') {
+            updatedMonth.income = m.income.filter(item => item.id !== id);
+          } else if (type === 'expense') {
+            updatedMonth.expenses = m.expenses.filter(item => item.id !== id);
+          } else if (type === 'savings') {
+            updatedMonth.savings = m.savings.filter(item => item.id !== id);
+          }
         }
-        
         return updatedMonth;
       });
     });
@@ -568,11 +536,10 @@ export default function App() {
 
       // Special logic for NEW installment expenses
       if (modalType === 'expense' && formData.isInstallment && !editingItem) {
-        // ... (existing installment logic)
         const match = formData.installmentInfo.match(/(\d+)/g);
         const totalInstallments = match ? parseInt(match[match.length - 1]) : 1;
         const installmentAmount = amount / totalInstallments;
-        const baseId = Math.random().toString(36).substr(2, 9);
+        const groupId = Math.random().toString(36).substr(2, 9) + '-' + Date.now();
         const baseDate = new Date(formData.date + 'T00:00:00');
 
         for (let i = 0; i < totalInstallments; i++) {
@@ -583,7 +550,7 @@ export default function App() {
           const installmentText = `${String(i + 1).padStart(2, '0')}/${String(totalInstallments).padStart(2, '0')}`;
           
           const newItem: Transaction = {
-            id: `${baseId}-${i}`,
+            id: Math.random().toString(36).substr(2, 9),
             date: dateString,
             amount: installmentAmount,
             description: formData.description,
@@ -592,13 +559,14 @@ export default function App() {
             bank: formData.bank,
             isInstallment: true,
             installmentInfo: installmentText,
-            importance: formData.importance
+            importance: formData.importance,
+            groupId: groupId
           };
 
-          if (targetMonthIndex >= newMonths.length) {
+          // Ensure the month exists
+          while (targetMonthIndex >= newMonths.length) {
             const lastMonth = newMonths[newMonths.length - 1];
-            const newMonth = createNextMonthData(lastMonth);
-            newMonths.push(newMonth);
+            newMonths.push(createNextMonthData(lastMonth));
           }
 
           newMonths[targetMonthIndex] = {
@@ -612,14 +580,19 @@ export default function App() {
         const baseId = editingItem?.id || Math.random().toString(36).substr(2, 9);
         const groupId = (editingItem as Transaction)?.groupId || baseId;
 
-        // Update current and all FUTURE months
-        newMonths = newMonths.map((m, idx) => {
-          if (idx < activeMonthIndex) return m; // Don't change previous months
+        // Update current and all FUTURE months (for 12 months as a default for recurring)
+        const monthsToCreate = 12;
+        for (let i = 0; i < monthsToCreate; i++) {
+          const idx = activeMonthIndex + i;
+          
+          const baseDate = new Date(formData.date + 'T00:00:00');
+          const newDate = new Date(baseDate);
+          newDate.setMonth(baseDate.getMonth() + i);
+          const dateString = newDate.toISOString().split('T')[0];
 
-          const updatedMonth = { ...m };
           const newItem: Transaction = {
-            id: idx === activeMonthIndex ? baseId : Math.random().toString(36).substr(2, 9),
-            date: formData.date, // Note: In future months we might want to adjust the date, but keeping it simple for now
+            id: i === 0 ? baseId : Math.random().toString(36).substr(2, 9),
+            date: dateString,
             amount,
             description: formData.description,
             category: formData.category,
@@ -631,32 +604,27 @@ export default function App() {
             groupId: groupId
           };
 
-          // Adjust date for future months to keep the same day
-          if (idx > activeMonthIndex) {
-            const baseDate = new Date(formData.date + 'T00:00:00');
-            const newDate = new Date(baseDate);
-            newDate.setMonth(baseDate.getMonth() + (idx - activeMonthIndex));
-            newItem.date = newDate.toISOString().split('T')[0];
+          // Ensure the month exists
+          while (idx >= newMonths.length) {
+            const lastMonth = newMonths[newMonths.length - 1];
+            newMonths.push(createNextMonthData(lastMonth));
           }
 
+          const updatedMonth = { ...newMonths[idx] };
           if (editingItem) {
-            // Update existing item in this month (match by groupId or original id)
-            const exists = m.expenses.some(ex => ex.groupId === groupId || ex.id === baseId);
+            const exists = updatedMonth.expenses.some(ex => ex.groupId === groupId || ex.id === baseId);
             if (exists) {
-              updatedMonth.expenses = m.expenses.map(ex => 
+              updatedMonth.expenses = updatedMonth.expenses.map(ex => 
                 (ex.groupId === groupId || ex.id === baseId) ? newItem : ex
               );
-            } else if (idx > activeMonthIndex) {
-              // If it didn't exist in a future month but should be there (repeated in all months)
-              updatedMonth.expenses = [...m.expenses, newItem];
+            } else {
+              updatedMonth.expenses = [...updatedMonth.expenses, newItem];
             }
           } else {
-            // New item: add to current and all future months
-            updatedMonth.expenses = [...m.expenses, newItem];
+            updatedMonth.expenses = [...updatedMonth.expenses, newItem];
           }
-
-          return updatedMonth;
-        });
+          newMonths[idx] = updatedMonth;
+        }
       }
       else {
         // Standard save logic for income, savings, or other expenses

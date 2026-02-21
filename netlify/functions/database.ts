@@ -50,16 +50,39 @@ export const handler = async (event: any) => {
         };
 
       case 'insert':
-        // Rigorous column names: bank, installment, importance
-        const { date, amount, description, category, type, bank, installmentInfo, importance } = body.data;
+        // Rigorous column names: bank, installment, importance, group_id
+        const { date, amount, description, category, type, bank, installmentInfo, importance, groupId } = body.data;
         await sql`
-          INSERT INTO transactions (date, amount, description, category, type, bank, installment, importance)
-          VALUES (${date}, ${amount}, ${description}, ${category}, ${type}, ${bank}, ${installmentInfo}, ${importance})
+          INSERT INTO transactions (date, amount, description, category, type, bank, installment, importance, group_id)
+          VALUES (${date}, ${amount}, ${description}, ${category}, ${type}, ${bank}, ${installmentInfo}, ${importance}, ${groupId || null})
         `;
         return {
           statusCode: 201,
           headers,
           body: JSON.stringify({ message: 'Inserted successfully into transactions' }),
+        };
+
+      case 'delete':
+        const { id: deleteId, groupId: deleteGroupId, deleteAllFuture } = body;
+        if (deleteGroupId && deleteAllFuture) {
+          await sql`DELETE FROM transactions WHERE group_id = ${deleteGroupId}`;
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ message: 'All transactions in group deleted successfully' }),
+          };
+        } else if (deleteId) {
+          await sql`DELETE FROM transactions WHERE id = ${deleteId}`;
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ message: 'Transaction deleted successfully' }),
+          };
+        }
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'Missing id or groupId for deletion' }),
         };
 
       case 'insert_savings':
