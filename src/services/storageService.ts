@@ -64,10 +64,16 @@ export const storageService = {
       if (isPreview) return;
       
       console.log('Saving data to Netlify Function...');
+      // Ensure we are sending a clean JSON object
+      const payload = { 
+        action: 'save', 
+        data: months 
+      };
+
       const response = await fetch('/.netlify/functions/database', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'save', data: months }),
+        body: JSON.stringify(payload),
       });
       
       console.log(`Save response status: ${response.status} (${response.ok ? 'OK' : 'ERROR'})`);

@@ -76,23 +76,25 @@ export const handler = async (event: any) => {
         };
 
       case 'save':
-        // Save the whole state to app_state (JSONB column 'content')
-        // Also saving to 'content' table as requested by user to keep both in sync
+        // Ensure data is stringified and cast to jsonb to avoid syntax errors
+        const jsonData = JSON.stringify(body.data);
+        
+        console.log('Saving state to app_state and content tables...');
+        
         await sql`
           INSERT INTO app_state (id, content) 
-          VALUES ('main', ${body.data})
+          VALUES ('main', ${jsonData}::jsonb)
           ON CONFLICT (id) DO UPDATE SET content = EXCLUDED.content
         `;
         
-        // If the user created a table named 'content', we try to save there too
         try {
           await sql`
             INSERT INTO content (id, content) 
-            VALUES ('main', ${body.data})
+            VALUES ('main', ${jsonData}::jsonb)
             ON CONFLICT (id) DO UPDATE SET content = EXCLUDED.content
           `;
         } catch (e) {
-          console.warn('Could not save to "content" table, check if it exists with columns id and content:', e);
+          console.warn('Could not save to "content" table:', e);
         }
 
         return {
