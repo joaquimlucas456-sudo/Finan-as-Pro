@@ -38,6 +38,11 @@ const MONTH_NAMES = [
   'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'
 ];
 
+const getCurrentMonthName = () => {
+  const now = new Date();
+  return `${MONTH_NAMES[now.getMonth()].toUpperCase()} - ${now.getFullYear()}`;
+};
+
 // Mock Data for Initial State
 const INITIAL_DATA: MonthData[] = [
   {
@@ -269,7 +274,11 @@ const Modal = ({ isOpen, onClose, title, children }: { isOpen: boolean, onClose:
 
 export default function App() {
   const [months, setMonths] = useState<MonthData[]>(INITIAL_DATA);
-  const [activeMonthId, setActiveMonthId] = useState(INITIAL_DATA[1].id);
+  const [activeMonthId, setActiveMonthId] = useState(() => {
+    const currentName = getCurrentMonthName();
+    const found = INITIAL_DATA.find(m => m.name === currentName);
+    return found ? found.id : INITIAL_DATA[0].id;
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
@@ -282,24 +291,14 @@ export default function App() {
         if (data && data.length > 0) {
           setMonths(data);
           
-          // Try to recover last viewed month
-          const lastViewed = localStorage.getItem('lastViewedDate');
-          if (lastViewed) {
-            const savedMonth = data.find(m => m.name === lastViewed);
-            if (savedMonth) {
-              setActiveMonthId(savedMonth.id);
-            } else {
-              setActiveMonthId(data[0].id);
-            }
+          // Always try to set active month to current month/year
+          const currentName = getCurrentMonthName();
+          const found = data.find(m => m.name === currentName);
+          if (found) {
+            setActiveMonthId(found.id);
           } else {
-            // Default to current month if possible
-            const now = new Date();
-            const currentMonthName = MONTH_NAMES[now.getMonth()].toUpperCase();
-            const currentYear = now.getFullYear();
-            const currentName = `${currentMonthName} - ${currentYear}`;
-            const currentMonth = data.find(m => m.name === currentName);
-            
-            setActiveMonthId(currentMonth ? currentMonth.id : data[0].id);
+            // If current month doesn't exist in saved data, use the first available or keep initial
+            setActiveMonthId(data[0].id);
           }
         }
       } catch (error) {
@@ -311,15 +310,6 @@ export default function App() {
     };
     loadData();
   }, []);
-
-  // Save last viewed month
-  React.useEffect(() => {
-    if (isLoading || isFirstLoad) return;
-    const currentMonth = months.find(m => m.id === activeMonthId);
-    if (currentMonth) {
-      localStorage.setItem('lastViewedDate', currentMonth.name);
-    }
-  }, [activeMonthId, months, isLoading, isFirstLoad]);
 
   // Save data when months change
   React.useEffect(() => {
