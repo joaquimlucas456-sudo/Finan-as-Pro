@@ -12,7 +12,7 @@ export const storageService = {
       }
       
       console.log('Fetching data from Netlify Function...');
-      const response = await fetch('/.netlify/functions/database?action=select');
+      const response = await fetch('/.netlify/functions/database?action=select_state');
       
       console.log(`Fetch response status: ${response.status} (${response.ok ? 'OK' : 'ERROR'})`);
       
