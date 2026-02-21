@@ -1,6 +1,6 @@
 import { MonthData } from '../types';
 
-const isPreview = true;
+const isPreview = false;
 const STORAGE_KEY = 'financas_pro_data';
 
 export const storageService = {

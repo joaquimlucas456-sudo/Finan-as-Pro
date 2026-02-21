@@ -281,8 +281,26 @@ export default function App() {
         const data = await storageService.getMonths();
         if (data && data.length > 0) {
           setMonths(data);
-          // Try to find a month close to current date or just use the first one
-          setActiveMonthId(data[0].id);
+          
+          // Try to recover last viewed month
+          const lastViewed = localStorage.getItem('lastViewedDate');
+          if (lastViewed) {
+            const savedMonth = data.find(m => m.name === lastViewed);
+            if (savedMonth) {
+              setActiveMonthId(savedMonth.id);
+            } else {
+              setActiveMonthId(data[0].id);
+            }
+          } else {
+            // Default to current month if possible
+            const now = new Date();
+            const currentMonthName = MONTH_NAMES[now.getMonth()].toUpperCase();
+            const currentYear = now.getFullYear();
+            const currentName = `${currentMonthName} - ${currentYear}`;
+            const currentMonth = data.find(m => m.name === currentName);
+            
+            setActiveMonthId(currentMonth ? currentMonth.id : data[0].id);
+          }
         }
       } catch (error) {
         console.error('Failed to load data:', error);
@@ -293,6 +311,15 @@ export default function App() {
     };
     loadData();
   }, []);
+
+  // Save last viewed month
+  React.useEffect(() => {
+    if (isLoading || isFirstLoad) return;
+    const currentMonth = months.find(m => m.id === activeMonthId);
+    if (currentMonth) {
+      localStorage.setItem('lastViewedDate', currentMonth.name);
+    }
+  }, [activeMonthId, months, isLoading, isFirstLoad]);
 
   // Save data when months change
   React.useEffect(() => {
