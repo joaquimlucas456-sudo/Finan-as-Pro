@@ -3,6 +3,14 @@ import { MonthData } from '../types';
 const isPreview = false;
 const STORAGE_KEY = 'financas_pro_data';
 
+const handleDatabaseError = (error: any) => {
+  const message = error.message || '';
+  if (message.toLowerCase().includes('relation') && message.toLowerCase().includes('does not exist')) {
+    const tableName = message.match(/"([^"]+)"/)?.[1] || 'desconhecida';
+    alert(`ERRO DE BANCO DE DADOS: A tabela "${tableName}" não foi encontrada no Neon. Por favor, crie-a no painel da Neon.`);
+  }
+};
+
 export const storageService = {
   async getMonths(): Promise<MonthData[]> {
     try {
@@ -27,7 +35,10 @@ export const storageService = {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || errorData.details || 'Failed to fetch data');
+        const errorMsg = errorData.error || errorData.details || 'Failed to fetch data';
+        const err = new Error(errorMsg);
+        handleDatabaseError(err);
+        throw err;
       }
       
       const data = await response.json();
@@ -65,7 +76,9 @@ export const storageService = {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error('Failed to save to cloud:', errorData.error || 'Unknown error');
+        const errorMsg = errorData.error || 'Unknown error';
+        console.error('Failed to save to cloud:', errorMsg);
+        handleDatabaseError(new Error(errorMsg));
       }
     } catch (error) {
       console.error('Error saving months to cloud, data kept in localStorage:', error);

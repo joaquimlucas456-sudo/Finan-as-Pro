@@ -33,6 +33,7 @@ export const handler = async (event: any) => {
       case 'select_state':
         // Get the whole app state from app_state table
         const stateResult = await sql`SELECT content FROM app_state WHERE id = 'main'`;
+        // Neon handles JSONB automatically, but we return the content field
         return {
           statusCode: 200,
           headers,
@@ -50,6 +51,7 @@ export const handler = async (event: any) => {
 
       case 'insert':
         // Rigorous column names: bank, installment, importance
+        // Note: installmentInfo is mapped to 'installment' column in DB
         const { date, amount, description, category, type, bank, installmentInfo, importance } = body.data;
         await sql`
           INSERT INTO transactions (date, amount, description, category, type, bank, installment, importance)
@@ -76,9 +78,10 @@ export const handler = async (event: any) => {
 
       case 'save':
         // Save the whole state as a blob in app_state
+        // Neon's template literal will handle the object/array correctly for a JSONB column
         await sql`
           INSERT INTO app_state (id, content) 
-          VALUES ('main', ${JSON.stringify(body.data)})
+          VALUES ('main', ${body.data})
           ON CONFLICT (id) DO UPDATE SET content = EXCLUDED.content
         `;
         return {
